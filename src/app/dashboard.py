@@ -17,6 +17,19 @@ except ImportError:
 
 st.set_page_config(page_title="OncoPharm CDSS", layout="wide", page_icon="🏥")
 
+# --- ASSINATURA DO DESENVOLVEDOR (SIDEBAR) ---
+with st.sidebar:
+    st.image("https://cdn-icons-png.flaticon.com/512/3004/3004458.png", width=50)
+    st.markdown("### OncoPharm CDSS")
+    st.caption("v2.3 (Stable Build)")
+    st.markdown("---")
+    st.markdown("**Desenvolvido por:**")
+    st.markdown("👨‍⚕️ **Farm. Thiago Abranches**")
+    st.markdown("🆔 CRF-SP 91811")
+    st.markdown("📱 +55 11 94146 9952")
+    st.markdown("---")
+    st.info("Plataforma de Oncologia de Precisão baseada em OMOP e IA.")
+
 # Inicialização de Sessão
 if 'nlp_engine' not in st.session_state:
     st.session_state['nlp_engine'] = PharmacovigilanceNLP()
@@ -34,7 +47,6 @@ def get_data_from_sql():
     if not os.path.exists(DB_PATH): return pd.DataFrame()
     conn = sqlite3.connect(DB_PATH)
     try:
-        # Recupera dados ordenados pelo mais recente
         df = pd.read_sql("SELECT person_id as 'ID', episode_source_value as 'Detalhes' FROM episode ORDER BY episode_id DESC LIMIT 50", conn)
     except:
         df = pd.DataFrame()
@@ -70,7 +82,6 @@ with col_dados:
     st.subheader("🗄️ Prontuário (SQL)")
     if not df_sql.empty:
         st.dataframe(df_sql.head(10), use_container_width=True, hide_index=True)
-        # Pega o paciente mais recente (topo da lista)
         paciente_selecionado = df_sql.iloc[0]['ID']
         detalhes_paciente = df_sql.iloc[0]['Detalhes']
         st.info(f"Paciente em Foco: {paciente_selecionado}")
@@ -93,11 +104,9 @@ with col_intel:
         else: 
             st.warning("Execute o modelo de Risco primeiro.")
 
-    # Monitoramento de Texto (NLP)
     with tab3:
         st.info("O sistema monitora a evolução clínica digitada abaixo em tempo real.")
 
-    # Integração ANVISA
     with tab4:
         st.markdown("##### 🏛️ Notificação Compulsória")
         if st.button("🚀 PREPARAR NOTIVISA", type="primary"):
@@ -116,15 +125,13 @@ with col_intel:
         if st.session_state['notivisa_report']:
             st.text_area("📋 Dados para Copiar:", st.session_state['notivisa_report'], height=150)
 
-# --- ÁREA DE DECISÃO DIDÁTICA (RESTAURADA) ---
+# --- ÁREA DE DECISÃO ---
 st.markdown("---")
 st.header("📝 Farmácia Clínica: Tomada de Decisão & Registro")
 
-# Container visual para destacar a área de ação
 with st.container():
     c1, c2, c3 = st.columns([1, 2, 1])
     
-    # Coluna 1: Intervenção
     with c1:
         st.markdown("**1. Ajuste de Dose**")
         decisao_dose = st.radio(
@@ -136,7 +143,6 @@ with st.container():
             index=1
         )
     
-    # Coluna 2: Evolução (Com NLP em tempo real)
     with c2:
         st.markdown("**2. Acompanhamento Clínico**")
         notas_clinicas = st.text_area(
@@ -145,20 +151,17 @@ with st.container():
             height=130
         )
         
-        # O NLP roda aqui em tempo real
         aes_detectados = st.session_state['nlp_engine'].analyze_text(notas_clinicas)
         if aes_detectados:
             termos = [x['termo'] for x in aes_detectados]
             st.caption(f"🔴 Termos de risco identificados: {', '.join(termos)}")
             st.toast(f"Alerta NLP: {termos}", icon="⚠️")
         
-    # Coluna 3: Botão de Ação
     with c3:
         st.markdown("**3. Registro**")
         st.write("") 
         st.write("")
         
-        # Botão grande e vermelho para registrar
         if st.button("💾 REGISTRAR DECISÃO", type="primary", use_container_width=True):
             if paciente_selecionado != "N/A":
                 save_decision_log(
@@ -173,4 +176,4 @@ with st.container():
                 st.error("Nenhum paciente selecionado.")
 
 st.markdown("---")
-st.caption("OncoPharm CDSS v2.2 (Stable) | Governança: DVC + SQL | ANVISA Integrada")
+st.caption("OncoPharm CDSS | Powered by Python, SQL & AI")
