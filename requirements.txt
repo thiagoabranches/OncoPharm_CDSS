@@ -7,3 +7,11 @@ sqlalchemy
 jupyterlab
 pytest
 scipy
+hl7
+fastapi
+uvicorn
+requests
+hl7
+fastapi
+uvicorn
+requests

@@ -5,3 +5,6 @@ __pycache__/
 /data/
 !/data/*.dvc
 !/data/**/*.dvc
+.venv/
+.venv/
+.venv/
