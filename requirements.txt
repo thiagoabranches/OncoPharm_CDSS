@@ -1,0 +1,9 @@
+pandas
+scikit-survival
+ehrapy
+dvc
+psycopg2-binary
+sqlalchemy
+jupyterlab
+pytest
+scipy
