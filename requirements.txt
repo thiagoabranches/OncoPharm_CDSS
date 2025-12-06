@@ -15,3 +15,5 @@ hl7
 fastapi
 uvicorn
 requests
+selenium
+webdriver-manager
