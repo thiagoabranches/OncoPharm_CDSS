@@ -8,25 +8,31 @@ SCHEMA_PATH = "database/schemas/01_omop_oncology_episode.sql"
 CSV_PATH = "data/processed/dados_limpos.csv"
 
 def init_database():
-    print("🗄️  Inicializando Banco de Dados OMOP (SQLite)...")
+    print("[INFO] Inicializando Banco de Dados OMOP (SQLite)...")
     
     # 1. Conectar ao banco
     conn = sqlite3.connect(DB_PATH)
     
-    # 2. Ler e executar o esquema SQL (CORREÇÃO: encoding='utf-8')
-    # Isso garante que o Python entenda o arquivo criado pelo Git Bash
-    with open(SCHEMA_PATH, 'r', encoding='utf-8') as f:
-        schema_sql = f.read()
-        conn.executescript(schema_sql)
+    # 2. Ler e executar o esquema SQL
+    # encoding='utf-8' e essencial para ler o arquivo SQL corretamente
+    try:
+        with open(SCHEMA_PATH, 'r', encoding='utf-8') as f:
+            schema_sql = f.read()
+            conn.executescript(schema_sql)
+        print("[OK] Tabelas criadas.")
+    except FileNotFoundError:
+        print(f"[ERRO] Arquivo de esquema nao encontrado: {SCHEMA_PATH}")
+        return None
         
-    print("✅ Tabelas OMOP criadas com sucesso.")
     return conn
 
 def load_data(conn):
-    print("📥 Carregando dados do CSV para SQL...")
+    if conn is None: return
+
+    print("[INFO] Carregando dados do CSV para SQL...")
     
     if not os.path.exists(CSV_PATH):
-        print(f"❌ Erro: Arquivo {CSV_PATH} não encontrado. Rode o ETL 01.")
+        print(f"[ERRO] Arquivo {CSV_PATH} nao encontrado. Rode o ETL 01.")
         return
 
     df = pd.read_csv(CSV_PATH)
@@ -43,7 +49,6 @@ def load_data(conn):
             f"Dose: {row['dose_cisplatina']} | Tox: {row['toxicidade_renal']}" # source_value
         )
         
-        # Query de Inserção segura
         sql = """
         INSERT INTO episode (
             episode_id, person_id, episode_concept_id, 
@@ -54,28 +59,29 @@ def load_data(conn):
         try:
             cursor.execute(sql, episode_data)
         except sqlite3.IntegrityError:
-            print(f"⚠️ Aviso: Registro {row['id_paciente']} já existe.")
+            pass # Ignora duplicatas na carga inicial
         
     conn.commit()
-    print(f"💾 {len(df)} registros processados na tabela 'episode'.")
+    print(f"[OK] {len(df)} registros processados.")
 
 def verify_data(conn):
-    print("\n🔎 Verificando dados via SQL:")
+    if conn is None: return
+    print("\n[INFO] Verificando dados via SQL:")
     try:
-        df_sql = pd.read_sql_query("SELECT * FROM episode", conn)
-        print(df_sql[['person_id', 'episode_source_value']].head())
+        df_sql = pd.read_sql_query("SELECT * FROM episode LIMIT 5", conn)
+        print(df_sql[['person_id', 'episode_source_value']])
     except Exception as e:
         print(f"Erro ao ler SQL: {e}")
 
 if __name__ == "__main__":
-    # Remove banco antigo para garantir teste limpo
+    # Garante banco limpo
     if os.path.exists(DB_PATH):
         try:
             os.remove(DB_PATH)
-        except PermissionError:
-            print("⚠️ O banco de dados está aberto em outro programa. Feche o Streamlit e tente de novo.")
+        except:
+            pass
         
     conn = init_database()
     load_data(conn)
     verify_data(conn)
-    conn.close()
+    if conn: conn.close()
