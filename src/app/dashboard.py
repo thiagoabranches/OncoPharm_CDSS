@@ -1,179 +1,184 @@
 import streamlit as st
 import pandas as pd
-import sqlite3
+import numpy as np
+import plotly.graph_objects as go
 import os
-import datetime
-from PIL import Image
-import sys
+from datetime import datetime
 
-# --- Configuração Inicial ---
-sys.path.append(os.path.abspath("src"))
-try:
-    from models.nlp.ae_detector import PharmacovigilanceNLP
-    from integration.rpa.notivisa_bot import NotivisaAutomator
-except ImportError:
-    st.error("Erro critico: Modulos nao encontrados. Verifique a pasta src.")
-    st.stop()
+# --- 1. CONFIGURAÇÃO DA PÁGINA ---
+st.set_page_config(
+    page_title="OncoPharm CDSS",
+    layout="wide",
+    page_icon="⚕️",
+    initial_sidebar_state="expanded"
+)
 
-st.set_page_config(page_title="OncoPharm CDSS", layout="wide", page_icon="🏥")
+# --- 2. CSS PROFISSIONAL ---
+st.markdown("""
+    <style>
+    .block-container { padding-top: 1rem; padding-bottom: 5rem; }
+    
+    /* Cartão de Assinatura do Desenvolvedor */
+    .developer-card {
+        background-color: #f8f9fa;
+        border: 1px solid #e9ecef;
+        border-radius: 8px;
+        padding: 15px;
+        margin-bottom: 20px;
+        font-size: 0.9rem;
+        box-shadow: 0 1px 2px rgba(0,0,0,0.05);
+    }
+    .dev-header {
+        color: #0072b1; /* Azul LinkedIn/Profissional */
+        font-weight: bold;
+        font-size: 0.8rem;
+        text-transform: uppercase;
+        letter-spacing: 1px;
+        margin-bottom: 8px;
+    }
+    .dev-name { font-weight: bold; font-size: 1.1rem; color: #333; }
+    .dev-crf { color: #666; font-size: 0.9rem; margin-bottom: 10px; display: block; }
+    .dev-contact { font-size: 0.85rem; color: #444; line-height: 1.6; }
+    .dev-contact a { text-decoration: none; color: #0072b1; font-weight: 600; }
+    .dev-contact a:hover { text-decoration: underline; }
+    
+    /* Outros Estilos */
+    .patient-banner {
+        background-color: #0e1117;
+        color: white;
+        padding: 15px;
+        border-radius: 8px;
+        border-left: 5px solid #0072b1;
+        margin-bottom: 20px;
+    }
+    div[data-testid="stMetric"] {
+        background-color: white; border: 1px solid #ddd; border-radius: 8px; padding: 10px;
+    }
+    </style>
+""", unsafe_allow_html=True)
 
-# --- ASSINATURA DO DESENVOLVEDOR (SIDEBAR) ---
-with st.sidebar:
-    st.image("https://cdn-icons-png.flaticon.com/512/3004/3004458.png", width=50)
-    st.markdown("### OncoPharm CDSS")
-    st.caption("v2.3 (Stable Build)")
-    st.markdown("---")
-    st.markdown("**Desenvolvido por:**")
-    st.markdown("👨‍⚕️ **Farm. Thiago Abranches**")
-    st.markdown("🆔 CRF-SP 91811")
-    st.markdown("📱 +55 11 94146 9952")
-    st.markdown("---")
-    st.info("Plataforma de Oncologia de Precisão baseada em OMOP e IA.")
-
-# Inicialização de Sessão
-if 'nlp_engine' not in st.session_state:
-    st.session_state['nlp_engine'] = PharmacovigilanceNLP()
-if 'notivisa_bot' not in st.session_state:
-    st.session_state['notivisa_bot'] = NotivisaAutomator()
-if 'notivisa_report' not in st.session_state:
-    st.session_state['notivisa_report'] = ""
-
-# Caminhos
-DB_PATH = "database/oncopharm.db"
-LOG_PATH = "data/processed/decisoes_clinicas.txt"
-
-# --- Funções Backend ---
-def get_data_from_sql():
-    if not os.path.exists(DB_PATH): return pd.DataFrame()
-    conn = sqlite3.connect(DB_PATH)
+# --- 3. CARREGAMENTO ---
+@st.cache_data
+def load_data():
     try:
-        df = pd.read_sql("SELECT person_id as 'ID', episode_source_value as 'Detalhes' FROM episode ORDER BY episode_id DESC LIMIT 50", conn)
+        base = os.getcwd()
+        p = pd.read_csv(os.path.join(base, "data/processed/pacientes_mock.csv"))
+        e = pd.read_csv(os.path.join(base, "data/processed/exames_mock.csv"))
+        n = pd.read_csv(os.path.join(base, "data/processed/notas_mock.csv"))
+        return p, e, n
     except:
-        df = pd.DataFrame()
-    conn.close()
-    return df
+        return pd.DataFrame(), pd.DataFrame(), pd.DataFrame()
 
-def save_decision_log(paciente_id, acao, notas, nlp_alerts):
-    timestamp = datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-    log_entry = (
-        f"[{timestamp}] PACIENTE: {paciente_id}\n"
-        f"ACAO: {acao}\n"
-        f"ALERTA IA: {nlp_alerts}\n"
-        f"EVOLUCAO: {notas}\n"
-        f"{'-'*60}\n"
-    )
-    with open(LOG_PATH, "a", encoding="utf-8") as f:
-        f.write(log_entry)
+df_p, df_e, df_n = load_data()
 
-# --- Interface Principal ---
-st.title("🏥 OncoPharm: Plataforma de Oncologia de Precisão")
-st.markdown("### 🔌 Conexão: SQL + NLP + Interoperabilidade (Tasy/Notivisa)")
-st.markdown("---")
-
-# Carrega dados
-df_sql = get_data_from_sql()
-paciente_selecionado = "N/A"
-detalhes_paciente = "Aguardando integração..."
-
-# Layout Superior
-col_dados, col_intel = st.columns([1, 2])
-
-with col_dados:
-    st.subheader("🗄️ Prontuário (SQL)")
-    if not df_sql.empty:
-        st.dataframe(df_sql.head(10), use_container_width=True, hide_index=True)
-        paciente_selecionado = df_sql.iloc[0]['ID']
-        detalhes_paciente = df_sql.iloc[0]['Detalhes']
-        st.info(f"Paciente em Foco: {paciente_selecionado}")
+# --- 4. SIDEBAR (ASSINATURA NO TOPO) ---
+with st.sidebar:
+    st.title("⚕️ OncoPharm CDSS")
+    
+    # --- CARTÃO DO DESENVOLVEDOR (Posição Premium) ---
+    st.markdown("""
+    <div class="developer-card">
+        <div class="dev-header">Desenvolvedor Responsável</div>
+        <span class="dev-name">Farm. Thiago Abranches</span>
+        <span class="dev-crf">CRF-SP 091811</span>
+        <hr style="margin: 8px 0; border-color: #dee2e6;">
+        <div class="dev-contact">
+            📱 11 94146-9952<br>
+            📧 thabranches@gmail.com<br>
+            🔗 <a href="https://linkedin.com/in/thiago-abranches" target="_blank">linkedin.com/in/thiago-abranches</a>
+        </div>
+    </div>
+    """, unsafe_allow_html=True)
+    
+    # NAVEGAÇÃO
+    if not df_p.empty:
+        st.subheader("📂 Prontuário Eletrônico")
+        lista = df_p.apply(lambda x: f"{x['id']} - {x['nome']}", axis=1)
+        selecao = st.selectbox("Selecione o Paciente:", lista)
+        
+        # Filtros
+        pid = int(selecao.split(" - ")[0])
+        paciente = df_p[df_p['id'] == pid].iloc[0]
+        exames = df_e[df_e['patient_id'] == pid]
+        notas = df_n[df_n['patient_id'] == pid]
+        
+        st.markdown("---")
+        st.radio("Navegação:", ["Visão Geral", "Farmacocinética", "Vigilância (NLP)", "Decisão Clínica"], key="nav")
     else:
-        st.warning("Banco de dados vazio. Inicie o simulador Tasy.")
+        st.stop()
 
-with col_intel:
-    st.subheader("🧠 Inteligência Clínica Multi-modal")
-    tab1, tab2, tab3, tab4 = st.tabs(["📉 PK (Dose)", "🔮 Risco (IA)", "📝 Monitor NLP", "🚨 ANVISA"])
-    
-    with tab1:
-        if os.path.exists("simulacao_pk.png"): 
-            st.image(Image.open("simulacao_pk.png"), width=400, caption="Simulação Farmacocinética")
-        else: 
-            st.warning("Execute o modelo PK primeiro.")
-        
-    with tab2:
-        if os.path.exists("curva_sobrevivencia_toxicidade.png"): 
-            st.image(Image.open("curva_sobrevivencia_toxicidade.png"), width=400, caption="Curva de Risco CoxPH")
-        else: 
-            st.warning("Execute o modelo de Risco primeiro.")
+# --- 5. PATIENT BANNER ---
+creat = exames[exames['tipo']=='Creatinina']['valor'].iloc[-1] if not exames.empty else 0.0
+risco = creat > 1.2
+status_txt = "🔴 ALERTA RENAL" if risco else "🟢 ESTÁVEL"
 
-    with tab3:
-        st.info("O sistema monitora a evolução clínica digitada abaixo em tempo real.")
+st.markdown(f"""
+<div class="patient-banner">
+    <h3 style="margin:0">{paciente['nome']}</h3>
+    <span>ID: {paciente['id']} | Idade: {paciente['idade']} | BSA: {paciente['bsa']} m² | <b>Status: {status_txt}</b></span>
+</div>
+""", unsafe_allow_html=True)
 
-    with tab4:
-        st.markdown("##### 🏛️ Notificação Compulsória")
-        if st.button("🚀 PREPARAR NOTIVISA", type="primary"):
-            dados_incidente = {
-                "patient_id": paciente_selecionado,
-                "event": "Detectado via NLP (Vide notas)",
-                "grade": "Verificar",
-                "notes": "Vide evolução clínica",
-                "date": str(datetime.date.today())
-            }
-            relatorio = st.session_state['notivisa_bot'].generate_copy_paste_report(dados_incidente)
-            st.session_state['notivisa_report'] = relatorio
-            st.session_state['notivisa_bot'].open_portal()
-            st.success("Portal ANVISA aberto. Copie os dados abaixo.")
-            
-        if st.session_state['notivisa_report']:
-            st.text_area("📋 Dados para Copiar:", st.session_state['notivisa_report'], height=150)
+# --- 6. CONTEÚDO ---
+page = st.session_state.nav
 
-# --- ÁREA DE DECISÃO ---
-st.markdown("---")
-st.header("📝 Farmácia Clínica: Tomada de Decisão & Registro")
+if page == "Visão Geral":
+    c1, c2, c3, c4 = st.columns(4)
+    c1.metric("Creatinina", f"{creat} mg/dL", delta="-Alto" if risco else "Ok", delta_color="inverse")
+    c2.metric("Clearance Est.", "45 mL/min" if risco else "95 mL/min")
+    c3.metric("Ciclo Atual", "Cisplatina D1")
+    c4.metric("Peso", f"{paciente['peso']} kg")
+    st.markdown("##### Histórico Recente")
+    st.dataframe(exames, use_container_width=True, hide_index=True)
 
-with st.container():
-    c1, c2, c3 = st.columns([1, 2, 1])
-    
+elif page == "Farmacocinética":
+    c1, c2 = st.columns([1, 3])
     with c1:
-        st.markdown("**1. Ajuste de Dose**")
-        decisao_dose = st.radio(
-            "Selecione a conduta:",
-            ("Manter Dose Prescrita", 
-             "Reduzir 20% (Preventivo)", 
-             "Reduzir 50% (Toxicidade Grave)", 
-             "Suspender Ciclo"),
-            index=1
-        )
-    
+        st.markdown("#### Parâmetros MIPD")
+        if risco:
+            st.error("⚠️ Clearance Reduzido")
+            st.write("**Sugestão:** Reduzir 25%")
+            kel = 0.15
+        else:
+            st.success("✅ Função Normal")
+            st.write("**Sugestão:** Dose Padrão")
+            kel = 0.45
     with c2:
-        st.markdown("**2. Acompanhamento Clínico**")
-        notas_clinicas = st.text_area(
-            "Justificativa e Notas de Evolução:",
-            value=f"Paciente {paciente_selecionado}. Detalhes Clinicos: {detalhes_paciente}.",
-            height=130
-        )
-        
-        aes_detectados = st.session_state['nlp_engine'].analyze_text(notas_clinicas)
-        if aes_detectados:
-            termos = [x['termo'] for x in aes_detectados]
-            st.caption(f"🔴 Termos de risco identificados: {', '.join(termos)}")
-            st.toast(f"Alerta NLP: {termos}", icon="⚠️")
-        
-    with c3:
-        st.markdown("**3. Registro**")
-        st.write("") 
-        st.write("")
-        
-        if st.button("💾 REGISTRAR DECISÃO", type="primary", use_container_width=True):
-            if paciente_selecionado != "N/A":
-                save_decision_log(
-                    paciente_selecionado, 
-                    decisao_dose, 
-                    notas_clinicas, 
-                    str([x['termo'] for x in aes_detectados])
-                )
-                st.success("✅ Intervenção registrada no prontuário!")
-                st.balloons()
-            else:
-                st.error("Nenhum paciente selecionado.")
+        t = np.linspace(0, 24, 100)
+        c = (100/30)*np.exp(-kel*t)
+        fig = go.Figure()
+        fig.add_trace(go.Scatter(x=t, y=c, fill='tozeroy', name='Conc.'))
+        fig.add_hline(y=1.5, line_dash="dash", line_color="red")
+        fig.update_layout(title="Simulação 24h", height=400, template="plotly_white")
+        st.plotly_chart(fig, use_container_width=True)
 
-st.markdown("---")
-st.caption("OncoPharm CDSS | Powered by Python, SQL & AI")
+elif page == "Vigilância (NLP)":
+    st.subheader("Análise de Texto Livre")
+    texto = notas['texto'].iloc[0]
+    termos = ["neutropenia", "tinnitus", "nefrotoxicidade", "rash", "oligúria", "zumbido"]
+    
+    html = texto
+    achou = []
+    for t in termos:
+        if t in texto.lower():
+            achou.append(t)
+            html = html.replace(t, f"<span style='background:#fff59d; font-weight:bold;'>{t}</span>")
+    
+    c1, c2 = st.columns([2,1])
+    with c1: st.markdown(f"<div style='background:white; padding:15px; border:1px solid #ddd; border-radius:5px;'>{html}</div>", unsafe_allow_html=True)
+    with c2: 
+        if achou: 
+            for x in achou: st.error(f"🚨 {x.upper()}")
+        else: st.success("Nenhum termo crítico.")
+
+elif page == "Decisão Clínica":
+    st.subheader("Assinatura e Conduta")
+    with st.form("f"):
+        c1, c2 = st.columns([2,1])
+        with c1:
+            st.selectbox("Conduta:", ["Liberar", "Ajustar", "Suspender"])
+            st.text_area("Justificativa:")
+        with c2:
+            st.markdown(f"**Responsável:**<br>Farm. Thiago Abranches<br>{datetime.now().strftime('%d/%m/%Y')}", unsafe_allow_html=True)
+            if st.form_submit_button("🔒 ASSINAR"):
+                st.success("Registrado com sucesso!")
