@@ -12,7 +12,7 @@ from sklearn.pipeline import make_pipeline
 # Importação Segura da Groq
 try:
     from src.ai.llm_groq import get_second_opinion
-except:
+except ImportError:
     def get_second_opinion(a,b,c): return "Módulo Groq não configurado."
 
 # --- 1. CONFIGURAÇÃO DA PÁGINA ---
@@ -27,7 +27,7 @@ st.set_page_config(
 # Tenta pegar a chave do cofre do Streamlit Cloud
 if "GROQ_API_KEY" in st.secrets:
     os.environ["GROQ_API_KEY"] = st.secrets["GROQ_API_KEY"]
-    ia_status = "✅ IA Generativa Ativa (Licença do Sistema)"
+    ia_status = "✅ IA Ativa (Licença do Sistema)"
     tem_chave = True
 else:
     ia_status = "⚠️ IA Offline (Configure a chave)"
@@ -37,6 +37,8 @@ else:
 st.markdown("""
     <style>
     .block-container { padding-top: 1rem; padding-bottom: 5rem; }
+    
+    /* HEADER */
     .main-header {
         background: linear-gradient(135deg, #0072b1 0%, #003d5c 100%);
         padding: 20px; border-radius: 10px; color: white; text-align: center;
@@ -45,6 +47,8 @@ st.markdown("""
     }
     .main-header h1 { margin: 0; font-size: 2.2rem; font-weight: 700; color: white; }
     .capsule-icon { font-size: 3rem; }
+
+    /* CARTÃO DO DESENVOLVEDOR */
     .developer-card {
         background-color: #f8f9fa; border: 1px solid #e9ecef; border-radius: 8px;
         padding: 15px; margin-bottom: 20px; text-align: left;
@@ -53,9 +57,14 @@ st.markdown("""
     .dev-name { font-weight: bold; font-size: 1.1rem; color: #222; }
     .dev-contacts { font-size: 0.8rem; color: #444; margin-top: 10px; line-height: 1.5; }
     .dev-contacts a { color: #0072b1; text-decoration: none; font-weight: 600; }
+    
+    /* BANNER PACIENTE */
     .patient-banner { background-color: #1e2330; color: white; padding: 15px 20px; border-radius: 8px; border-left: 5px solid #00c853; margin-bottom: 20px; }
+    
+    /* BADGES */
     .badge-grade { padding: 4px 10px; border-radius: 4px; color: white; font-weight: bold; }
-    .bg-grave { background-color: #d32f2f; } .bg-leve { background-color: #388e3c; }
+    .bg-grave { background-color: #d32f2f; } 
+    .bg-leve { background-color: #388e3c; }
     .entity-tag { display: inline-block; padding: 2px 8px; margin: 2px; border-radius: 12px; background: #e3f2fd; border: 1px solid #90caf9; color:#0d47a1; font-size: 0.85rem; }
     </style>
 """, unsafe_allow_html=True)
@@ -63,14 +72,23 @@ st.markdown("""
 # --- 4. CARREGAMENTO DE MODELOS ---
 @st.cache_resource
 def load_ai():
-    try: ner = pipeline("ner", model="d4data/biomedical-ner-all", aggregation_strategy="simple")
-    except: ner = None
+    try: 
+        ner = pipeline("ner", model="d4data/biomedical-ner-all", aggregation_strategy="simple")
+    except: 
+        ner = None
+    
     try:
         base = os.getcwd()
-        df = pd.read_csv(os.path.join(base, "data/processed/treino_ia.csv"))
-        rf = make_pipeline(TfidfVectorizer(), RandomForestClassifier(n_estimators=50))
-        rf.fit(df['texto'], df['gravidade'])
-    except: rf = None
+        path = os.path.join(base, "data/processed/treino_ia.csv")
+        # Garante que o arquivo existe antes de ler
+        if os.path.exists(path):
+            df = pd.read_csv(path)
+            rf = make_pipeline(TfidfVectorizer(), RandomForestClassifier(n_estimators=50))
+            rf.fit(df['texto'], df['gravidade'])
+        else:
+            rf = None
+    except: 
+        rf = None
     return ner, rf
 
 ner_engine, rf_engine = load_ai()
@@ -105,10 +123,9 @@ with st.sidebar:
     
     st.markdown("---")
     
-    # CONFIGURAÇÃO DE IA (AUTOMÁTICA OU MANUAL)
+    # CONFIGURAÇÃO DE IA
     with st.expander("⚙️ Configuração do Sistema"):
         st.caption(f"Status: {ia_status}")
-        # Só mostra o campo de senha se NÃO tiver chave no cofre
         if not tem_chave:
             api_key = st.text_input("Cole sua Groq API Key:", type="password")
             if api_key: os.environ["GROQ_API_KEY"] = api_key
@@ -180,6 +197,7 @@ with tab3:
                     c = rf_engine.predict_proba([texto]).max()
                     e = ner_engine(texto)
                     st.session_state['ai_res'] = {'g':g, 'c':c, 'e':e}
+            else: st.warning("Modelo IA carregando ou indisponível...")
     with c2:
         if 'ai_res' in st.session_state:
             res = st.session_state['ai_res']
