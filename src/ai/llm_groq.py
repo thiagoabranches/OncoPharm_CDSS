@@ -4,24 +4,21 @@ import streamlit as st
 
 def get_second_opinion(texto_clinico, gravidade, entidades):
     """
-    Usa a API gratuita da Groq (Llama 3) para gerar uma segunda opinião clínica.
+    Usa a API gratuita da Groq (Llama 3.3) para gerar uma segunda opinião clínica.
+    Modelo atualizado para evitar erro de 'decommissioned'.
     """
-    # Tenta pegar a chave dos segredos do Streamlit ou usa uma hardcoded para teste LOCAL
-    # ATENÇÃO: Para o Github, o ideal é usar st.secrets. 
-    # Para facilitar seu teste agora, você pode colar sua chave abaixo temporariamente.
+    # Tenta pegar a chave dos segredos do Streamlit ou variáveis de ambiente
     api_key = os.environ.get("GROQ_API_KEY") 
     
-    # SE VOCÊ NÃO TIVER CONFIGURADO ENV VARS, COLOQUE SUA CHAVE ABAIXO (Cuidado ao commitar)
     if not api_key:
-        # api_key = "gsk_..." <--- Coloque sua chave aqui se der erro
-        return "⚠️ Erro: API Key da Groq não encontrada. Configure as variáveis de ambiente."
+        return "⚠️ Erro: API Key da Groq não encontrada. Configure na barra lateral."
 
     client = Groq(api_key=api_key)
 
     system_prompt = """
     Você é um Oncologista Sênior e Farmacêutico Clínico. 
     Analise o caso focando em: 1. Validação da gravidade; 2. Manejo de sintomas; 3. Segurança da Cisplatina.
-    Responda em Português (Brasil). Seja conciso e use tópicos.
+    Responda em Português (Brasil). Seja conciso, técnico e use tópicos.
     """
 
     user_prompt = f"""
@@ -40,7 +37,8 @@ def get_second_opinion(texto_clinico, gravidade, entidades):
                 {"role": "system", "content": system_prompt},
                 {"role": "user", "content": user_prompt},
             ],
-            model="llama3-70b-8192", # Modelo Gratuito e Muito Inteligente
+            # Modelo atualizado e estável (Dez 2025)
+            model="llama-3.3-70b-versatile", 
             temperature=0.2,
         )
         return chat_completion.choices[0].message.content
