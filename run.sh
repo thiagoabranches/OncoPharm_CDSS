@@ -1,7 +1,13 @@
 #!/bin/bash
-# 1. Cria a pasta de dados se não existir
+
+# --- 1. INSTALAÇÃO DE DEPENDÊNCIAS DO SISTEMA (Linux Packages) ---
+# Usamos apt-get para instalar o essencial que o Python precisa
+sudo apt-get update && sudo apt-get install -y python3-pandas python3-numpy python3-scikit-learn
+
+# --- 2. GERAÇÃO DE DADOS E INICIALIZAÇÃO ---
+# Cria a pasta de dados e executa o gerador de dados antes do app
 mkdir -p src/data/processed
-# 2. Roda o script para gerar os mocks de pacientes e treino da IA
 python src/data/generate_synthetic.py
-# 3. Inicia o aplicativo Streamlit
+
+# Inicia o aplicativo Streamlit
 python -m streamlit run src/app/dashboard.py
