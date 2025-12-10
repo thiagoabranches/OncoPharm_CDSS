@@ -1,0 +1,7 @@
+[server]
+runOnSave = true
+[client]
+toolbarMode = "minimal"
+[runner]
+# Força o Streamlit a usar o script run.sh ao invés do comando padrão.
+command = "bash run.sh"

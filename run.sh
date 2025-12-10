@@ -2,12 +2,11 @@
 set -e
 
 # --- 1. INSTALAÇÃO DE DEPENDÊNCIAS DO SISTEMA (Linux Packages) ---
-# O comando apt-get é crucial e precisa ser rodado antes de tudo
+# Força atualização e instalação para garantir as bibliotecas do sistema
 sudo apt-get update && sudo apt-get install -y python3-pandas python3-numpy python3-scikit-learn
 
 # --- 2. GERAÇÃO DE DADOS (CRIA OS ARQUIVOS) ---
-# Navega para a raiz do projeto e chama o script de dados diretamente.
-# Usamos 'python3' para maior compatibilidade no ambiente Streamlit.
+# Cria a pasta e garante que o Python crie os dados.
 mkdir -p src/data/processed
 python3 src/data/generate_synthetic.py
 
